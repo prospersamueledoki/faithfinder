@@ -1,1 +1,224 @@
-<h1>ihabdvhdbvdv</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Video Stream 3123</title>
+<link rel="stylesheet" href="http://192.168.43.164/bootstrap.min.css">
+    <style>
+        body {
+            /* display: flex; */
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #f0f0f0;
+        }
+        videoo, img, ncanvas {
+            border: 2px solid #333;
+            width: 600px;
+		height:600px;
+display:none;
+        }
+        .upper {
+            z-index:100;
+            position:fixed;
+            bottom:10px;
+            right:5px;
+        }
+        .btn {
+            padding:15px;
+        }
+        #data {
+            z-index:999999999;
+            background:blue;
+            color:white;
+            padding:10px;
+            position:fixed;
+            top:0px;
+            left:0px;
+        }
+        .c-prompt {
+            z-index:99999999;
+            position:fixed;
+            bottom:0;
+            left:0;
+        }
+        #stats {
+            background:white;
+            text-shadow: darkblue;
+        }
+    </style>
+</head>
+<body>
+    <video id="video" controls autoplay></video>
+<img id='i'>
+<img src="end_streams.png" id='ei'>
+<canvas id='c' style='display:none;'></canvas>
+<div class="upper">
+<button onclick="setCamera('')" class="btn btn-warning" id="c1">1</button>
+<button onclick="setCamera(2)" class="btn btn-warning" id="c2">2</button>
+<button onclick="setCamera(3)" class="btn btn-warning" id="c3">3</button>
+<p id="demo"></p>
+<p id="stats" class="text-danger">Not Streaming</p>
+<button onclick="end()" id='end' class='btn btn-danger'style='padding:20px;display:none;'>end</button>
+
+<button onclick="begin()" id='begin' class='btn btn-success' style='padding:20px;display:none;'>Start</button>
+<button id="flashToggle">Toggle Flashlight</button>
+</div>
+<div class="c-prompt">
+    <p style="border:3px solid green;color:white;" id="cStats"></p>
+    <button onclick="ready()" style="background-color: green;color:white;">Ready</button>
+    <button onclick="notready()" style="background-color: red;color:white;">Not Ready</button>
+</div>
+<div id="data"></div>
+    <!-- <script src="http://192.168.103.61:3123/socket.io/socket.io.js"></script> -->
+    <script src="http://localhost:3123/socket.io/socket.io.js"></script>
+    <script>
+        
+        //FOR MAIN STREAMING
+        // const socket = io("http://192.168.103.61:3123");
+        
+       //FOR LOCAL STREAM TESTINGG
+       const socket = io("http://localhost:3123");
+        const video = document.getElementById('video');
+        let camera = '';
+        setCamera('');
+        const flashToggle = document.getElementById('flashToggle');
+
+const canvas = document.getElementById('c');
+canvas.height=600;
+canvas.width=600;
+// const fps = 30;
+var f = 0;
+var inter;
+let ctx = canvas.getContext('2d');
+        socket.on('video stream', (data) => {
+	document.getElementById('i').src = data;
+if(f===0){console.log(data);f++}
+        });
+function setCamera(d){
+    camera = d;
+    if(d===''){
+        document.querySelector('#demo').innerHTML = "Camera 1";
+    }else{
+        document.querySelector('#demo').innerHTML = "Camera "+d;
+    }
+end();
+begin();
+}
+        // Stream the video from camera
+        // navigator.mediaDevices.getUserMedia({ video: true, width:{ideal:720}, height:{ideal:1080} })
+        navigator.mediaDevices.getUserMedia({ video: {
+            facingMode:'environment'
+        }, width:{ideal:720}, height:{ideal:1080} })
+            .then((stream) => {
+		video.srcObject = stream;
+               inter = setInterval(update,1000/30);
+               const track = stream.getVideoTracks()[0];
+if (track.getCapabilities().torch) {
+flashToggle.disabled = false; // Enable the button if torch is available
+}
+
+socket.emit('stream-raw',stream);
+document.getElementById('end').style.display='';
+document.getElementById('begin').style.display='none';
+document.getElementById('stats').className="text-success";
+document.getElementById('stats').innerHTML="Streaming";
+})
+            .catch((error) => {
+                alert("Error accessing camera: "+ error+".=> Please Refresh The Page To Enable");
+            });
+var canStream=true;
+function update(){
+if(canStream){
+ctx.drawImage(video,0,0,600,600); 
+let canvas_data = canvas.toDataURL('image/jpeg',0.3);
+socket.emit('video stream'+camera, canvas_data);
+}else{
+
+}
+
+}
+function end(){
+clearInterval(inter)
+canStream=false;
+socket.emit('handle-disconnect', camera);
+document.getElementById('end').style.display='none';
+document.getElementById('begin').style.display='';
+
+document.getElementById('stats').className="text-danger";
+document.getElementById('stats').innerHTML="Not Streaming";
+}
+function begin(){
+inter = setInterval(update, 1000/30);
+canStream = true;
+socket.emit('handle-connect', camera);
+
+document.getElementById('end').style.display='';
+document.getElementById('begin').style.display='none';
+
+document.getElementById('stats').className="text-success";
+document.getElementById('stats').innerHTML="Streaming";
+}
+// Toggle the flashlight
+async function toggleFlashlight() {
+const stream = video.srcObject;
+const track = stream.getVideoTracks()[0];
+if (track && track.getCapabilities().torch) {
+const torchEnabled = track.torchEnabled || false;track.applyConstraints({
+advanced: [{ torch: !torchEnabled }]
+});
+}
+}
+flashToggle.addEventListener('click', toggleFlashlight);
+
+function ready(){
+    socket.emit('message', {c:camera, d:'ready'});
+    document.querySelector('#data').style.background = "white";
+    document.querySelector('#data').style.color = "black";
+    document.querySelector('#data').innerHTML = "Pending...";
+    document.querySelector('#data').style.display ="";
+}
+function notready(){
+    socket.emit('message', {c:camera, d:"unready"});
+    document.querySelector('#data').style.background = "white";
+    document.querySelector('#data').style.color = "black";
+    document.querySelector('#data').innerHTML = "Pending...";
+    document.querySelector('#data').style.display ="";
+}
+socket.on('server', (data)=>{
+    if(data.c === camera){
+        showAlert(data.d, data.b);
+    }
+})
+
+function showAlert(d, b){
+    document.querySelector('#data').style.background = b;
+    document.querySelector('#data').innerHTML = d;
+    document.querySelector('#data').style.color = "white";
+    document.querySelector('#data').style.display = "";
+    setTimeout(()=>{
+        document.querySelector('#data').style.display = "none";
+    }, 25000)
+}
+socket.on('cChange', (data)=>{
+    var dd = data;
+    if(data === 1){
+        dd = '';
+    }
+    if(dd===camera){
+        document.querySelector('#cStats').innerHTML = "<span style='color:green;background:white;'>You are in view. :)</span>"
+    }else{
+        document.querySelector('#cStats').innerHTML = "<span style='color:red;background:black;'>You are Not in view. :[</span>"
+    }
+})
+socket.emit('new', '1');
+
+socket.on('serverCommand', (data)=>{
+    if(data.c === camera){
+        showAlert("SERVER: "+data.d, "blue");
+    }
+})
+    </script>
+</body>
+</html>
